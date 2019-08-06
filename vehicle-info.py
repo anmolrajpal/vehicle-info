@@ -21,12 +21,17 @@ app_url = 'https://vahan.nic.in/nrservices/faces/user/searchstatus.xhtml'
 captcha_image_url = 'https://vahan.nic.in/nrservices/cap_img.jsp'
 number = sys.argv[1]
 
-
+#MARK: Get Request to get webpage elements like textFields, image, etc
 r = requests.get(url=app_url)
 cookies = r.cookies
 soup = BeautifulSoup(r.text, 'html.parser')
+
+#MARK: ViewState contains token which needs to be passed in POST Request
+# ViewState is a hidden element. Open debugger to inspect element 
 viewstate = soup.select('input[name="javax.faces.ViewState"]')[0]['value']
 
+#MARK: Get Request to get Captcha Image from URL
+## Captcha Image Changes each time the URL is fired
 iresponse = requests.get(captcha_image_url)
 img = Image.open(BytesIO(iresponse.content))
 img.save("downloadedpng.png")
@@ -50,24 +55,32 @@ captcha_text = resolve(img)
 extracted_text = captcha_text.replace(" ", "").replace("\n", "")
 print("OCR Result => ", extracted_text)
 print(extracted_text)
+
+# MARK: Identifying Submit Button which will be responsible to make POST Request
 button = soup.find("button",{"type": "submit"})
 
+
 encodedViewState = viewstate.replace("/", "%2F").replace("+", "%2B").replace("=", "%3D")
+
+# MARK: Data, which needs to be passed in POST Request | Verify this manually in debugger
 data = {
-'javax.faces.partial.ajax':'true',
-'javax.faces.source': button['id'],
-'javax.faces.partial.execute':'@all',
-'javax.faces.partial.render': 'rcDetailsPanel resultPanel userMessages capatcha txt_ALPHA_NUMERIC',
-button['id']:button['id'],
-'masterLayout':'masterLayout',
-'regn_no1_exact': number,
-'txt_ALPHA_NUMERIC': extracted_text,
-'javax.faces.ViewState': viewstate,
-'j_idt32':''
+	'javax.faces.partial.ajax':'true',
+	'javax.faces.source': button['id'],
+	'javax.faces.partial.execute':'@all',
+	'javax.faces.partial.render': 'rcDetailsPanel resultPanel userMessages capatcha txt_ALPHA_NUMERIC',
+	button['id']:button['id'],
+	'masterLayout':'masterLayout',
+	'regn_no1_exact': number,
+	'txt_ALPHA_NUMERIC': extracted_text,
+	'javax.faces.ViewState': viewstate,
+	'j_idt32':''
 }
+# MARK: Data in Query format.. But not in use for now
 query = "javax.faces.partial.ajax=true&javax.faces.source=%s&javax.faces.partial.execute=%s&javax.faces.partial.render=rcDetailsPanel+resultPanel+userMessages+capatcha+txt_ALPHA_NUMERIC&j_idt42=j_idt42&masterLayout=masterLayout&j_idt32=&regn_no1_exact=%s&txt_ALPHA_NUMERIC=%s&javax.faces.ViewState=%s"%(button['id'], '%40all', number, extracted_text, encodedViewState)
-for i in cookies:
-	print(i)
+
+
+# MARK: Request Headers which may or may not needed to be passed in POST Request
+# Verify in debugger
 headers = {
 	'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
 	'Accept': 'application/xml, text/xml, */*; q=0.01',
@@ -86,18 +99,26 @@ headers = {
 }
 print(headers)
 
-print("\n\nCookie JSESSIONID =>")
-print(cookies['JSESSIONID'])
+print("\nCookie JSESSIONID => ", cookies['JSESSIONID'])
 print("\nData => \n")
 print(data)
+
+# MARK: Added delay
 sleep(2.0)
-req = requests.post(url=app_url, data=data, headers=headers, cookies=cookies)
-print("\n\nRequest =>\n")
-print(req)
-rsoup = BeautifulSoup(req.text, 'html.parser')
-print("Mark: request soup => ")
+
+
+
+#MARK: Send POST Request 
+postResponse = requests.post(url=app_url, data=data, headers=headers, cookies=cookies)
+print("\nPOST Request -> Response =>\n")
+print(postResponse)
+
+rsoup = BeautifulSoup(postResponse.text, 'html.parser')
+print("Mark: postResponse soup => ")
 print(rsoup.prettify())
 
+#MARK: Following code finds tr which means <table> element from html response
+# the required response is appended in <table> only. Verify it in debugger
 table = SoupStrainer('tr')
 tsoup = BeautifulSoup(rsoup.get_text(), 'html.parser', parse_only=table)
 
